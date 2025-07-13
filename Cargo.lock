@@ -1219,10 +1219,14 @@ name = "custom_shader"
 version = "0.1.0"
 dependencies = [
  "bytemuck",
+ "console_error_panic_hook",
+ "console_log",
+ "getrandom 0.2.16",
  "glam",
  "iced",
  "image",
  "rand 0.8.5",
+ "tracing-subscriber",
 ]
 
 [[package]]

@@ -137,6 +137,10 @@ impl shader::Primitive for Primitive {
         _bounds: &Rectangle,
         viewport: &Viewport,
     ) {
+        device.on_uncaptured_error(Box::new(|e| {
+            eprintln!("Error in wgpu: {e:}");
+        }));
+
         if !storage.has::<Pipeline>() {
             storage.store(Pipeline::new(
                 device,

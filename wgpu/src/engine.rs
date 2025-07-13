@@ -4,7 +4,7 @@ use crate::quad;
 use crate::text;
 use crate::triangle;
 
-use std::sync::{Arc, RwLock};
+use std::{cell::RefCell, rc::Rc};
 
 #[derive(Clone)]
 #[allow(missing_debug_implementations)]
@@ -18,7 +18,7 @@ pub struct Engine {
     pub(crate) triangle_pipeline: triangle::Pipeline,
     #[cfg(any(feature = "image", feature = "svg"))]
     pub(crate) image_pipeline: crate::image::Pipeline,
-    pub(crate) primitive_storage: Arc<RwLock<primitive::Storage>>,
+    pub(crate) primitive_storage: Rc<RefCell<primitive::Storage>>,
 }
 
 impl Engine {
@@ -47,7 +47,7 @@ impl Engine {
                 crate::image::Pipeline::new(&device, format, backend)
             },
 
-            primitive_storage: Arc::new(RwLock::new(
+            primitive_storage: Rc::new(RefCell::new(
                 primitive::Storage::default(),
             )),
 

@@ -358,7 +358,7 @@ impl Renderer {
                 let mut primitive_storage = self
                     .engine
                     .primitive_storage
-                    .write()
+                    .try_borrow_mut()
                     .expect("Write primitive storage");
 
                 for instance in &layer.primitives {
@@ -535,7 +535,7 @@ impl Renderer {
                 let primitive_storage = self
                     .engine
                     .primitive_storage
-                    .read()
+                    .try_borrow()
                     .expect("Read primitive storage");
 
                 for instance in &layer.primitives {

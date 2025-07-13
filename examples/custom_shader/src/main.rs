@@ -9,6 +9,9 @@ use iced::window;
 use iced::{Center, Color, Element, Fill, Subscription};
 
 fn main() -> iced::Result {
+    #[cfg(not(target_arch = "wasm32"))]
+    tracing_subscriber::fmt::init();
+    
     iced::application(IcedCubes::default, IcedCubes::update, IcedCubes::view)
         .subscription(IcedCubes::subscription)
         .run()

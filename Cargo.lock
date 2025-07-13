@@ -1219,6 +1219,7 @@ name = "custom_shader"
 version = "0.1.0"
 dependencies = [
  "bytemuck",
+ "getrandom 0.2.16",
  "glam",
  "iced",
  "image",

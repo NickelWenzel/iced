@@ -10,7 +10,7 @@ use std::fmt::Debug;
 pub type Batch = Vec<Instance>;
 
 /// A set of methods which allows a [`Primitive`] to be rendered.
-pub trait Primitive: Debug + Send + Sync + 'static {
+pub trait Primitive: Debug + 'static {
     /// Processes the [`Primitive`], allowing for GPU buffer allocation.
     fn prepare(
         &self,
@@ -61,7 +61,7 @@ pub trait Renderer: core::Renderer {
 /// Stores custom, user-provided types.
 #[derive(Default, Debug)]
 pub struct Storage {
-    pipelines: FxHashMap<TypeId, Box<dyn Any + Send + Sync>>,
+    pipelines: FxHashMap<TypeId, Box<dyn Any>>,
 }
 
 impl Storage {
@@ -71,7 +71,7 @@ impl Storage {
     }
 
     /// Inserts the data `T` in to [`Storage`].
-    pub fn store<T: 'static + Send + Sync>(&mut self, data: T) {
+    pub fn store<T: 'static>(&mut self, data: T) {
         let _ = self.pipelines.insert(TypeId::of::<T>(), Box::new(data));
     }
 

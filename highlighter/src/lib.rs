@@ -28,6 +28,23 @@ pub struct Highlighter {
     current_line: usize,
 }
 
+impl Highlighter {
+    /// Creates a new [`Highlighter`].
+    pub fn new(
+        syntax: &'static parsing::SyntaxReference,
+        highlighter: highlighting::Highlighter<'static>,
+        caches: Vec<(parsing::ParseState, parsing::ScopeStack)>,
+        current_line: usize,
+    ) -> Self {
+        Self {
+            syntax,
+            highlighter,
+            caches,
+            current_line,
+        }
+    }
+}
+
 impl highlighter::Highlighter for Highlighter {
     type Settings = Settings;
     type Highlight = Highlight;

@@ -22,7 +22,13 @@ all-features = true
 maintenance = { status = "actively-developed" }
 
 [features]
-default = ["wgpu", "tiny-skia", "web-colors", "auto-detect-theme", "thread-pool"]
+default = [
+    "wgpu",
+    "tiny-skia",
+    "web-colors",
+    "auto-detect-theme",
+    "thread-pool",
+]
 # Enables the `wgpu` GPU-accelerated renderer backend
 wgpu = ["iced_renderer/wgpu", "iced_widget/wgpu"]
 # Enables the `tiny-skia` software renderer backend
@@ -199,7 +205,9 @@ sipper = "0.1"
 smol = "2"
 smol_str = "0.2"
 softbuffer = "0.4"
-syntect = { version = "5.1", default-features = false }
+syntect = { version = "5.1", default-features = false, features = [
+    "default-fancy",
+] }
 sysinfo = "0.33"
 thiserror = "1.0"
 tiny-skia = "0.11"

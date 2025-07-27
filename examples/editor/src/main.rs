@@ -220,6 +220,24 @@ impl Editor {
                                 Message::SaveFile,
                             ))
                         }
+                        keyboard::Key::Character("z")
+                            if key_press.modifiers.command() =>
+                        {
+                            Some(text_editor::Binding::Custom(
+                                Message::ActionPerformed(
+                                    text_editor::Action::Undo,
+                                ),
+                            ))
+                        }
+                        keyboard::Key::Character("y")
+                            if key_press.modifiers.command() =>
+                        {
+                            Some(text_editor::Binding::Custom(
+                                Message::ActionPerformed(
+                                    text_editor::Action::Redo,
+                                ),
+                            ))
+                        }
                         _ => text_editor::Binding::from_key_press(key_press),
                     }
                 }),

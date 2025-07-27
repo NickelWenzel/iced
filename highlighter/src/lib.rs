@@ -23,6 +23,7 @@ const LINES_PER_SNAPSHOT: usize = 50;
 #[derive(Debug)]
 pub struct Highlighter {
     syntax: &'static parsing::SyntaxReference,
+    syntaxes: &'static parsing::SyntaxSet,
     highlighter: highlighting::Highlighter<'static>,
     caches: Vec<(parsing::ParseState, parsing::ScopeStack)>,
     current_line: usize,
@@ -32,12 +33,14 @@ impl Highlighter {
     /// Creates a new [`Highlighter`].
     pub fn new(
         syntax: &'static parsing::SyntaxReference,
+        syntaxes: &'static parsing::SyntaxSet,
         highlighter: highlighting::Highlighter<'static>,
         caches: Vec<(parsing::ParseState, parsing::ScopeStack)>,
         current_line: usize,
     ) -> Self {
         Self {
             syntax,
+            syntaxes,
             highlighter,
             caches,
             current_line,
@@ -66,6 +69,7 @@ impl highlighter::Highlighter for Highlighter {
 
         Highlighter {
             syntax,
+            syntaxes: &SYNTAXES,
             highlighter,
             caches: vec![(parser, stack)],
             current_line: 0,
@@ -73,9 +77,10 @@ impl highlighter::Highlighter for Highlighter {
     }
 
     fn update(&mut self, new_settings: &Self::Settings) {
-        self.syntax = SYNTAXES
+        self.syntax = self
+            .syntaxes
             .find_syntax_by_token(&new_settings.token)
-            .unwrap_or_else(|| SYNTAXES.find_syntax_plain_text());
+            .unwrap_or_else(|| self.syntaxes.find_syntax_plain_text());
 
         self.highlighter = highlighting::Highlighter::new(
             &THEMES.themes[new_settings.theme.key()],
@@ -120,7 +125,7 @@ impl highlighter::Highlighter for Highlighter {
         let (parser, stack) =
             self.caches.last_mut().expect("Caches must not be empty");
 
-        let ops = parser.parse_line(line, &SYNTAXES).unwrap_or_default();
+        let ops = parser.parse_line(line, self.syntaxes).unwrap_or_default();
 
         Box::new(scope_iterator(ops, line, stack, &self.highlighter))
     }

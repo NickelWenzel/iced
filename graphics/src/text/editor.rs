@@ -10,7 +10,6 @@ use crate::text;
 use cosmic_text::Edit as _;
 
 use std::borrow::Cow;
-use std::collections::VecDeque;
 use std::fmt;
 use std::sync::{self, Arc, RwLock};
 
@@ -20,7 +19,7 @@ pub struct Editor(Option<Arc<Internal>>);
 
 struct Internal {
     editor: cosmic_text::Editor<'static>,
-    undo_handler: UndoHandler,
+    commands: cosmic_undo_2::Commands<cosmic_text::Change>,
     cursor: RwLock<Option<Cursor>>,
     font: Font,
     bounds: Size,
@@ -32,30 +31,6 @@ impl Editor {
     /// Creates a new empty [`Editor`].
     pub fn new() -> Self {
         Self::default()
-    }
-
-    /// Creates a new [`Editor`] with the given undo capacity in Mb.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the editor is not initialized or the internal editor has multiple strong references.
-    pub fn with_undo_capacity(mut self, capacity: usize) -> Self {
-        // Take ownership from Option
-        let editor =
-            self.0.take().expect("Editor should always be initialized");
-
-        // TODO: Handle multiple strong references somehow
-        let internal = Arc::try_unwrap(editor)
-            .expect("Editor cannot have multiple strong references");
-
-        let undo_handler = UndoHandler {
-            capacity,
-            ..internal.undo_handler
-        };
-        Self(Some(Arc::new(Internal {
-            undo_handler,
-            ..internal
-        })))
     }
 
     /// Returns the buffer of the [`Editor`].
@@ -300,9 +275,6 @@ impl editor::Editor for Editor {
             .expect("Write to cursor cache")
             .take();
 
-        editor.start_change();
-        let is_undo_redo = action == Action::Undo || action == Action::Redo;
-
         match action {
             Action::Move(motion) => {
                 if let Some((start, end)) = editor.selection_bounds() {
@@ -391,6 +363,8 @@ impl editor::Editor for Editor {
                 }
             }
             Action::Edit(edit) => {
+                editor.start_change();
+
                 match edit {
                     Edit::Insert(c) => {
                         editor.action(
@@ -433,6 +407,10 @@ impl editor::Editor for Editor {
                     }
                 }
 
+                if let Some(change) = editor.finish_change() {
+                    internal.commands.push(change);
+                }
+
                 internal.topmost_line_changed = Some(topmost_line(editor));
             }
             Action::Click(position) => {
@@ -467,22 +445,21 @@ impl editor::Editor for Editor {
                 );
             }
             Action::Undo => {
-                if internal.undo_handler.undo(editor) {
+                if internal.commands.undo().fold(0, |acc, action| {
+                    acc + undo_2_action(editor, action) as usize
+                }) > 0
+                {
                     internal.topmost_line_changed = Some(topmost_line(editor));
                 }
             }
             Action::Redo => {
-                if internal.undo_handler.redo(editor) {
+                if internal.commands.redo().fold(0, |acc, action| {
+                    acc + undo_2_action(editor, action) as usize
+                }) > 0
+                {
                     internal.topmost_line_changed = Some(topmost_line(editor));
                 }
             }
-        }
-
-        // Undo/Redo actions are not pushed to the undo handler
-        if let Some(change) = editor.finish_change()
-            && !is_undo_redo
-        {
-            internal.undo_handler.push_undo(change);
         }
 
         self.0 = Some(Arc::new(internal));
@@ -705,7 +682,7 @@ impl Default for Internal {
                     line_height: 1.0,
                 },
             )),
-            undo_handler: UndoHandler::default(),
+            commands: cosmic_undo_2::Commands::new(),
             cursor: RwLock::new(None),
             font: Font::default(),
             bounds: Size::ZERO,
@@ -853,89 +830,18 @@ where
     }
 }
 
-struct UndoHandler {
-    undos: VecDeque<cosmic_text::Change>,
-    redos: VecDeque<cosmic_text::Change>,
-    capacity: usize,
-}
-
-impl UndoHandler {
-    fn new(capacity: usize) -> Self {
-        Self {
-            undos: VecDeque::new(),
-            redos: VecDeque::new(),
-            capacity,
+fn undo_2_action(
+    editor: &mut cosmic_text::Editor<'static>,
+    action: cosmic_undo_2::Action<&cosmic_text::Change>,
+) -> bool {
+    match action {
+        cosmic_undo_2::Action::Do(change) => editor.apply_change(change),
+        cosmic_undo_2::Action::Undo(change) => {
+            //TODO: make this more efficient
+            let mut reversed = change.clone();
+            reversed.reverse();
+            editor.apply_change(&reversed)
         }
-    }
-
-    fn push_undo(&mut self, change: cosmic_text::Change) {
-        let mut memory_undos = self.undos.memory();
-        let mut memory_redos = self.redos.memory();
-        let memory_change = change.memory();
-        while memory_undos + memory_redos + memory_change > self.capacity
-            && !self.undos.is_empty()
-        {
-            let _ = self.undos.pop_front();
-            memory_undos = self.undos.memory();
-        }
-        while memory_undos + memory_redos + memory_change > self.capacity
-            && !self.redos.is_empty()
-        {
-            let _ = self.redos.pop_front();
-            memory_redos = self.redos.memory();
-        }
-        self.undos.push_back(change);
-        self.redos.clear();
-    }
-
-    fn undo(&mut self, editor: &mut cosmic_text::Editor<'_>) -> bool {
-        let Some(mut change) = self.undos.pop_back() else {
-            return false;
-        };
-        change.reverse();
-        let ret = editor.apply_change(&change);
-        self.redos.push_back(change);
-        ret
-    }
-
-    fn redo(&mut self, editor: &mut cosmic_text::Editor<'_>) -> bool {
-        let Some(mut change) = self.redos.pop_back() else {
-            return false;
-        };
-        change.reverse();
-        let ret = editor.apply_change(&change);
-        self.undos.push_back(change);
-        ret
-    }
-}
-
-impl Default for UndoHandler {
-    fn default() -> Self {
-        Self::new(5 * 1024 * 1024) // Default to 5 MB
-    }
-}
-
-trait MemorySize {
-    fn memory(&self) -> usize;
-}
-
-impl MemorySize for VecDeque<cosmic_text::Change> {
-    fn memory(&self) -> usize {
-        self.iter().map(MemorySize::memory).sum::<usize>()
-            + std::mem::size_of::<Self>()
-    }
-}
-
-impl MemorySize for cosmic_text::Change {
-    fn memory(&self) -> usize {
-        self.items.iter().map(MemorySize::memory).sum::<usize>()
-            + std::mem::size_of::<Self>()
-    }
-}
-
-impl MemorySize for cosmic_text::ChangeItem {
-    fn memory(&self) -> usize {
-        self.text.capacity() + std::mem::size_of::<Self>()
     }
 }
 
